@@ -8,14 +8,26 @@ import json
 
 DATA_PATH = os.path.dirname(__file__)
 
-JSON_name = 'test.json'
+JSON_name = 'test_8-8-2022.json'
 
 player = Player()
 player.open_stream()
 synthesizer = Synthesizer(osc1_waveform=Waveform.sine, osc1_volume=1.0, use_osc2=False)
+synthesizer2 = Synthesizer(osc1_waveform=Waveform.sine, osc1_volume=1.0, use_osc2=True, osc2_waveform=Waveform.sawtooth)
 
-fab_dists = []
-tone_multiplier = 1500
+fab_dists = [] # empty list to append measured distances to
+fab_tones = [] # empty list to append measurement tones to
+tolerance_counter = [] # empty list for counting number of consecutive times a measured distance is in a range
+
+audio_range = [200, 700] # comfortable range for audio scale in herz
+
+# all distance units are in meters
+measure_range = [0.2, 2.8] # range within which measurements will be taken
+target_dist = 0.5 # the target distance
+tolerable_range = 0.040 # value +/- the target_dist for an acceptable tolerance range
+toleration_times = 10 # number of times the distance measurement needs to be within the tol
+
+tol_dist = [(target_dist - tolerable_range), (target_dist + tolerable_range)]
 
 def findEvo():
     # Find Live Ports, return port name if found, NULL if not
@@ -73,6 +85,9 @@ def get_evo_range(evo_serial):
         dec_out = rng / 1000.0
     return dec_out
 
+def remap(old_val, old_min, old_max, new_min, new_max):
+    return ((new_max - new_min) * (old_val - old_min) / (old_max - old_min) + new_min)
+
 
 if __name__ == "__main__":
 
@@ -87,16 +102,32 @@ if __name__ == "__main__":
         evo = openEvo(port)
 
 
-for i in range(50):
+for i in range(250): 
     evo.flushInput()
-    evo.flushOutput()
-    dist = get_evo_range(evo)
-    if type(dist) is not str:
-        fab_dists.append(dist * tone_multiplier)
-        player.play_wave(synthesizer.generate_constant_wave((dist * tone_multiplier), 0.1))
+    evo.flushOutput() # clears the serial buffer for low latency measuring
+    dist = get_evo_range(evo) # gets measurement
+    
+    if type(dist) is not str: # test for errors (measurement outside sensor limits or unable to measure)
+        if dist > tol_dist[0] and dist < tol_dist[1]: # test if 'dist' is in tolerance range
+            # if True, play beeping sound and lengthen 'tolerance_counter' list
+            player.play_wave(synthesizer2.generate_constant_wave(700, 0.05))
+            player.play_wave(synthesizer2.generate_constant_wave(100, 0.05))
+            tolerance_counter.append(1)
+            print(tolerance_counter)
+            
+            if len(tolerance_counter) == toleration_times: # check number of consecutive measurements in 'tolerance_counter'
+                # if length of 'tolerance_counter' == 'toleration_times', then break the loop
+                evo.close()
+                break
+        
+        else:
+            # if 'dist' is outside tolerance range, then reset 'tolerance_counter' to an empty list and play tone corresponding to 'dist'
+            tolerance_counter = []
+            player.play_wave(synthesizer.generate_constant_wave((remap(dist, measure_range[0], measure_range[1], audio_range[0], audio_range[1])), 0.1))
+        
+        fab_dists.append(dist)
+        fab_tones.append(remap(dist, measure_range[0], measure_range[1], audio_range[0], audio_range[1]))
     print(dist)
-
-# print(fab_dists)
 
 
 filename = os.path.join(DATA_PATH, JSON_name)
