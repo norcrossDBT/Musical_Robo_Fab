@@ -9,7 +9,6 @@ import time
 
 DATA_PATH = os.path.dirname(__file__)
 GH_JSON = 'JSON_from_GH.json' # name of JSON file from Grasshopper
-JSON_name = 'test_8-11-2022.json' # name to save JSON file as
 
 player = Player()
 player.open_stream()
@@ -34,6 +33,7 @@ target_dist = float(GH_JSON_dict['target_dist']) # the target distance
 tolerable_dist = float(GH_JSON_dict['tolerable_dist']) # value +/- the target_dist for an acceptable tolerance range
 toleration_times = int(GH_JSON_dict['toleration_times']) # number of times the distance measurement needs to be within the tolerance range
 tol_range = [(target_dist - tolerable_dist), (target_dist + tolerable_dist)]
+JSON_name = GH_JSON_dict['export_JSON']
 
 def findEvo():
     # Find Live Ports, return port name if found, NULL if not
@@ -104,44 +104,44 @@ def measureLoop(): # connects to evo sensor, then processes measurements until t
         sys.exit()
     else:
         evo = openEvo(port)
-    
-    tolerance_counter = []
-    while len(tolerance_counter) < toleration_times: # measure and play audio loop
-        if len(tolerance_counter) > toleration_times: # extra failsafe clause just to make me feel safe
-            evo.close()
-            break
         
-        evo.flushInput()
-        evo.flushOutput() # clears the serial buffer for low latency measuring
-        dist = get_evo_range(evo) # gets measurement
-        
-        if type(dist) is not str: # test for errors (measurement outside sensor limits or unable to measure)
-            if dist > tol_range[0] and dist < tol_range[1]: # test if 'dist' is in 'tol_range'
-                # if True, play beeping sound and lengthen 'tolerance_counter' list
-                player.play_wave(synthesizer2.generate_constant_wave(700, audio_time / 2))
-                player.play_wave(synthesizer2.generate_constant_wave(100, audio_time / 2))
-                fab_tones.append(700)
-                fab_tones.append(100)
-                fab_dists.append(dist)
-                tolerance_counter.append(1)
-                print(tolerance_counter)
+        tolerance_counter = []
+        while len(tolerance_counter) < toleration_times: # measure and play audio loop
+            if len(tolerance_counter) > toleration_times: # extra failsafe clause just to make me feel safe
+                evo.close()
+                break
             
-            else:
-                # if 'dist' is outside tolerance range, then reset 'tolerance_counter' to an empty list
-                # generate and play tone corresponding to proximity of 'dist' to 'tol_range'
-                # a 'dist' close to 'tol_range' will have a high pitch tone, a 'dist' far from 'tol_range' will have a low pitch tone
-                fab_dists.append(dist)
-                tolerance_counter = []
-                if dist < tol_range[0]: # True if 'dist' is less than low end of 'tol_range'
-                    tone = remap(dist, measure_range[0], tol_range[0], audio_range[0], audio_range[1])
-                    player.play_wave(synthesizer.generate_constant_wave(tone, audio_time))
-                    fab_tones.append(tone)
-                if dist > tol_range[1]: # True if 'dist' is more than high end of 'tol_range'
-                    tone = remap(dist, tol_range[1], measure_range[1], audio_range[1], audio_range[0])
-                    player.play_wave(synthesizer.generate_constant_wave(tone, audio_time))
-                    fab_tones.append(tone)
-        print(dist)
-    evo.close()
+            evo.flushInput()
+            evo.flushOutput() # clears the serial buffer for low latency measuring
+            dist = get_evo_range(evo) # gets measurement
+            
+            if type(dist) is not str: # test for errors (measurement outside sensor limits or unable to measure)
+                if dist > tol_range[0] and dist < tol_range[1]: # test if 'dist' is in 'tol_range'
+                    # if True, play beeping sound and lengthen 'tolerance_counter' list
+                    player.play_wave(synthesizer2.generate_constant_wave(700, audio_time / 2))
+                    player.play_wave(synthesizer2.generate_constant_wave(100, audio_time / 2))
+                    fab_tones.append(700)
+                    fab_tones.append(100)
+                    fab_dists.append(dist)
+                    tolerance_counter.append(1)
+                    print(tolerance_counter)
+                
+                else:
+                    # if 'dist' is outside tolerance range, then reset 'tolerance_counter' to an empty list
+                    # generate and play tone corresponding to proximity of 'dist' to 'tol_range'
+                    # a 'dist' close to 'tol_range' will have a high pitch tone, a 'dist' far from 'tol_range' will have a low pitch tone
+                    fab_dists.append(dist)
+                    tolerance_counter = []
+                    if dist < tol_range[0]: # True if 'dist' is less than low end of 'tol_range'
+                        tone = remap(dist, measure_range[0], tol_range[0], audio_range[0], audio_range[1])
+                        player.play_wave(synthesizer.generate_constant_wave(tone, audio_time))
+                        fab_tones.append(tone)
+                    if dist > tol_range[1]: # True if 'dist' is more than high end of 'tol_range'
+                        tone = remap(dist, tol_range[1], measure_range[1], audio_range[1], audio_range[0])
+                        player.play_wave(synthesizer.generate_constant_wave(tone, audio_time))
+                        fab_tones.append(tone)
+            print(dist)
+        evo.close()
 
 def file_check(exp_path): # check for existing file with the same name
     if os.path.exists(exp_path) == True: # if same named file exists, adds "- Copy" to the end
@@ -165,6 +165,7 @@ if __name__ == "__main__":
     JSON_dict = {}
     JSON_dict["target_dist"] = target_dist
     JSON_dict["fab_time"] = end_time - start_time
+    JSON_dict["date_time"] = GH_JSON_dict['date_time']
     JSON_dict["tolerable_dist"] = tolerable_dist
     JSON_dict["toleration_times"] = toleration_times
     JSON_dict["measure_range"] = measure_range
@@ -173,7 +174,8 @@ if __name__ == "__main__":
     JSON_dict["fab_dists"] = fab_dists
     JSON_dict["fab_tones"] = fab_tones
 
-filename = file_check(os.path.join(DATA_PATH, JSON_name))
+export_DATA_PATH = DATA_PATH + "\data\JSON_files"
+filename = file_check(os.path.join(export_DATA_PATH, JSON_name))
 with open(filename, 'w') as f:
     f.write(json.dumps(JSON_dict, sort_keys=False)) # save data as JSON file
 

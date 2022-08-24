@@ -42,5 +42,6 @@ def file_check(exp_path): # check for existing file with the same name
 # export wav file
 if save_wav == 1:
     WAV_Name = input("\nPlease type name of wav file, don't include '.wav'.\nPress Enter to continue\n") # file name for .wav audio file
-    export_Path = file_check(data_Path + '/' + WAV_Name + '.wav')
+    wav_Path = data_Path + "\data\WAV_files"
+    export_Path = file_check(wav_Path + '/' + WAV_Name + '.wav')
     writer.write_waves(export_Path, *wave)
